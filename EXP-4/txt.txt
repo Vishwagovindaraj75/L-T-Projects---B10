@@ -1,0 +1,82 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// --- OLED Display Configuration ---
+#define SCREEN_WIDTH 128 
+#define SCREEN_HEIGHT 64 
+
+// OLED reset pin is not used on I2C, so set to -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// --- Pin Definitions ---
+int turbidityPin = A0;  // Turbidity sensor connected to Analog Pin A0
+
+// I2C pins for ESP8266 (NodeMCU)
+#define OLED_SDA 4   // D2 on NodeMCU
+#define OLED_SCL 5   // D1 on NodeMCU
+
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize I2C communication with custom SDA and SCL pins
+  Wire.begin(OLED_SDA, OLED_SCL);
+
+  // Initialize the OLED display
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Loop forever if display fails
+  }
+
+  // Display a startup message
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(10, 10);
+  display.println("Water Quality");
+  display.println("  Monitor");
+  display.display();
+  delay(2000);
+}
+
+void loop() {
+  int turbidityValue = analogRead(turbidityPin);
+  // ESP8266 ADC has 10-bit resolution (0-1023) and a 3.3V reference.
+  float voltage = turbidityValue * (3.3 / 1023.0);
+  // NTU standards for accurate readings. The relationship between
+  // voltage and NTU is often non-linear.
+  float turbidityNTU = -1120.4 * square(voltage) + 5742.3 * voltage - 4352.9;
+  if (turbidityNTU < 0) {
+    turbidityNTU = 0; // Ensure value does not go below zero
+  }
+
+  // Print values to the Serial Monitor for debugging and calibration
+  Serial.print("Raw Value: "); 
+  Serial.print(turbidityValue);
+  Serial.print(" | Voltage: "); 
+  Serial.print(voltage);
+  Serial.print("V | Turbidity: "); 
+  Serial.print(turbidityNTU, 2); // Print with 2 decimal places
+  Serial.println(" NTU");
+
+  // --- Display values on the OLED screen ---
+  display.clearDisplay();
+  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.println("Water Quality Monitor");
+  display.drawLine(0, 10, 127, 10, WHITE); // Separator line
+
+  display.setTextSize(2);
+  display.setCursor(0, 25);
+  display.print("Turb:");
+  
+  display.setCursor(60, 25);
+  display.print(turbidityNTU, 1); // Display with 1 decimal place
+  display.println(" NTU");
+
+  display.display();
+
+  delay(1000); // Wait for one second before the next measurement
+}

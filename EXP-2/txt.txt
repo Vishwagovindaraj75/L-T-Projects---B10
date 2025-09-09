@@ -1,0 +1,81 @@
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+Adafruit_MPU6050 mpu;
+
+// Buzzer pin
+const int buzzerPin = 13; // Connect buzzer positive to GPIO 13
+
+// OLED configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1  // No reset pin
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Acceleration threshold for buzzer
+const float accelerationThreshold = 10.0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+
+  // OLED init
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Default I2C addr 0x3C
+    Serial.println("SSD1306 allocation failed");
+    while(1);
+  }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+
+  // MPU6050 init
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1);
+  }
+  Serial.println("MPU6050 Initialized");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  delay(100);
+}
+
+void loop() {
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  // Calculate magnitude of acceleration vector
+  float accelMag = sqrt(a.acceleration.x * a.acceleration.x +
+                        a.acceleration.y * a.acceleration.y +
+                        a.acceleration.z * a.acceleration.z);
+
+  // Show values on OLED
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.print("Accel X: "); display.println(a.acceleration.x);
+  display.print("Accel Y: "); display.println(a.acceleration.y);
+  display.print("Accel Z: "); display.println(a.acceleration.z);
+  display.print("Magnitude: "); display.println(accelMag, 2);
+  display.display();
+
+  // Serial debug
+  Serial.print("Accel Mag: ");
+  Serial.println(accelMag);
+
+  // Buzzer alert
+  if (accelMag > accelerationThreshold) {
+    Serial.println("High motion detected! Buzzer ON");
+    digitalWrite(buzzerPin, HIGH);
+  } else {
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  delay(500);
+}
+
+
